@@ -1,14 +1,15 @@
+# ✅ model_predictor.py (Final Corrected)
 import joblib
-import pandas as pd
-import os
+import numpy as np
 
-# 🛫 Load the trained model
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '../../models/fuel_burn_predictor.pkl')
-model = joblib.load(MODEL_PATH)
+# Load trained model
+model_path = "models/fuel_burn_predictor.pkl"
+model = joblib.load(model_path)
 
-def predict_fuel_burn_single(features: dict):
-    # Expected features: distance_km, wind_speed_kt, deviation_flag, expected_flight_duration_sec, distance_penalty_km
-    expected_cols = ['distance_km', 'wind_speed_kt', 'deviation_flag', 'expected_flight_duration_sec', 'distance_penalty_km']
-    data = pd.DataFrame([features], columns=expected_cols)
-    prediction = model.predict(data)[0]
-    return predictio
+# Single flight prediction function
+def predict_fuel_burn_single(distance_km, wind_speed_kt):
+    # Approximate weather penalty factor based on wind speed
+    weather_penalty_factor = min(0.1, wind_speed_kt / 100)  # 10% max penalty
+    X = np.array([[distance_km, weather_penalty_factor]])
+    prediction = model.predict(X)
+    return prediction[0]  # Return as single float
