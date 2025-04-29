@@ -1,45 +1,39 @@
-# 📦 utils/model_predictor.py
 import joblib
 import pandas as pd
 import os
 
-# 📍 Load model once globally
-model_path = '/content/ETIHAD_OPTIMIZATION/models/fuel_burn_predictor.pkl'
+# ✅ Load model only once
+MODEL_PATH = os.path.join('models', 'fuel_burn_predictor.pkl')
 
-if not os.path.exists(model_path):
-    raise FileNotFoundError(f"❌ Model not found at: {model_path}")
+try:
+    model = joblib.load(MODEL_PATH)
+except Exception as e:
+    model = None
+    print(f"⚠️ Model load failed: {e}")
 
-model = joblib.load(model_path)
+# ✅ Correct expected features
+REQUIRED_FEATURES = [
+    'distance_km',
+    'weather_penalty_factor',
+    'deviation_flag',
+    'wind_speed_kt',
+    'expected_flight_duration_sec',
+    'distance_penalty_km'
+]
 
-def predict_fuel_burn_single(features: dict):
+def predict_fuel_burn_single(features: dict) -> float:
     """
-    Predict fuel burn for a single flight sample.
-
-    Expected features:
-    - distance_km
-    - weather_penalty_factor
-    - deviation_flag
-    - wind_speed_kt
-    - expected_flight_duration_sec
-    - distance_penalty_km
+    Predict fuel burn for a single flight given live features.
     """
-    required_features = [
-        "distance_km",
-        "weather_penalty_factor",
-        "deviation_flag",
-        "wind_speed_kt",
-        "expected_flight_duration_sec",
-        "distance_penalty_km"
-    ]
+    if model is None:
+        raise ValueError("Fuel burn model is not loaded.")
+    
+    # Build input DataFrame with correct feature names
+    try:
+        input_df = pd.DataFrame([{feat: features.get(feat, 0) for feat in REQUIRED_FEATURES}])
+    except Exception as e:
+        raise ValueError(f"Error preparing input for prediction: {e}")
 
-    # Check missing fields
-    missing = [f for f in required_features if f not in features]
-    if missing:
-        raise ValueError(f"Missing input fields: {missing}")
-
-    # Prepare the feature dataframe
-    X = pd.DataFrame([{k: features[k] for k in required_features}])
-
-    # Predict fuel burn
-    pred = model.predict(X)
-    return pred[0]  # Return single prediction
+    # Predict
+    prediction = model.predict(input_df)[0]
+    return prediction
