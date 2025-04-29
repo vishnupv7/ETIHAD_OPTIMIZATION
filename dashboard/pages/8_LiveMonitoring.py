@@ -19,7 +19,8 @@ OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"  # Your working key
 
 # ✅ Refresh button
 if st.button("🔄 Refresh Now"):
-    st.experimental_rerun()
+    st.rerun()
+
 
 # ✅ Load Live Flights
 st.subheader("🔎 Fetching Live OpenSky flights...")
