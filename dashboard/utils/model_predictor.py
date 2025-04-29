@@ -2,38 +2,13 @@ import joblib
 import pandas as pd
 import os
 
-# ✅ Load model only once
-MODEL_PATH = os.path.join('models', 'fuel_burn_predictor.pkl')
+# 🛫 Load the trained model
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '../../models/fuel_burn_predictor.pkl')
+model = joblib.load(MODEL_PATH)
 
-try:
-    model = joblib.load(MODEL_PATH)
-except Exception as e:
-    model = None
-    print(f"⚠️ Model load failed: {e}")
-
-# ✅ Correct expected features
-REQUIRED_FEATURES = [
-    'distance_km',
-    'weather_penalty_factor',
-    'deviation_flag',
-    'wind_speed_kt',
-    'expected_flight_duration_sec',
-    'distance_penalty_km'
-]
-
-def predict_fuel_burn_single(features: dict) -> float:
-    """
-    Predict fuel burn for a single flight given live features.
-    """
-    if model is None:
-        raise ValueError("Fuel burn model is not loaded.")
-    
-    # Build input DataFrame with correct feature names
-    try:
-        input_df = pd.DataFrame([{feat: features.get(feat, 0) for feat in REQUIRED_FEATURES}])
-    except Exception as e:
-        raise ValueError(f"Error preparing input for prediction: {e}")
-
-    # Predict
-    prediction = model.predict(input_df)[0]
-    return prediction
+def predict_fuel_burn_single(features: dict):
+    # Expected features: distance_km, wind_speed_kt, deviation_flag, expected_flight_duration_sec, distance_penalty_km
+    expected_cols = ['distance_km', 'wind_speed_kt', 'deviation_flag', 'expected_flight_duration_sec', 'distance_penalty_km']
+    data = pd.DataFrame([features], columns=expected_cols)
+    prediction = model.predict(data)[0]
+    return predictio
