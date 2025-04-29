@@ -8,9 +8,17 @@ from utils.prepare_live_features import prepare_live_features
 st.set_page_config(page_title="Live Monitoring", layout="wide")
 st.title("🛫 Live Monitoring - Etihad CO₂ Insights (Live + Replay)")
 
-# ✅ Manual Refresh Button
+# ✅ Setup Safe Manual Refresh
+if 'refresh' not in st.session_state:
+    st.session_state.refresh = False
+
 if st.button("🔁 Refresh Now"):
+    st.session_state.refresh = True
     st.experimental_rerun()
+
+if st.session_state.get('refresh', False):
+    st.session_state.refresh = False
+
 
 # ✅ Mode Selector
 mode = st.radio("🛰️ Choose Mode", ["Live", "Replay (Sample Data)"], horizontal=True)
