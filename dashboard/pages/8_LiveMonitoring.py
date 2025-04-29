@@ -1,8 +1,7 @@
 import streamlit as st
 
-# ✅ Safe Manual Refresh BEFORE ANY UI RENDERING
-if st.button("🔁 Refresh Now"):
-    st.experimental_rerun()
+# ✅ MUST be the very first Streamlit command
+st.set_page_config(page_title="Live Monitoring", layout="wide")
 
 import pandas as pd
 from datetime import datetime
@@ -10,25 +9,18 @@ from utils.fetch_live_data import fetch_live_flights, fetch_weather
 from utils.model_predictor import predict_fuel_burn
 from utils.prepare_live_features import prepare_live_features
 
-st.set_page_config(page_title="Live Monitoring", layout="wide")
 st.title("🛫 Live Monitoring - Etihad CO₂ Insights (Live + Replay)")
 
-# ✅ Setup Safe Manual Refresh
-if 'refresh' not in st.session_state:
-    st.session_state.refresh = False
-
-if st.button("🔁 Refresh Now"):
-    st.session_state.refresh = True
-    st.experimental_rerun()
-
-if st.session_state.get('refresh', False):
-    st.session_state.refresh = False
-
+# ✅ Manual Refresh Button (uses query param instead of experimental_rerun)
+refresh = st.button("🔁 Refresh Now")
 
 # ✅ Mode Selector
 mode = st.radio("🛰️ Choose Mode", ["Live", "Replay (Sample Data)"], horizontal=True)
 
-# ✅ Fetch or Prepare Flight Data
+# ✅ Fetch Live or Sample Data
+if refresh:
+    st.success("🔁 Manual refresh triggered!")
+
 flights_df = fetch_live_flights()
 
 if flights_df.empty and mode == "Live":
@@ -46,7 +38,7 @@ if mode == "Replay (Sample Data)":
         'distance_penalty_km': 0,
         'pressure': 1008
     }])
-    st.success("📦 Using Replay Sample Data")
+    st.info("📦 Using Replay Sample Data")
     flights = sample_data
 else:
     flights = prepare_live_features(flights_df)
@@ -54,7 +46,7 @@ else:
         st.warning("⚠️ No valid flights available after feature preparation.")
         st.stop()
 
-# ✅ Flight-wise Prediction and Insights
+# ✅ Show Predictions and Insights
 for idx, row in flights.iterrows():
     callsign = row.get("callsign", f"Flight {idx}")
 
@@ -73,7 +65,7 @@ for idx, row in flights.iterrows():
             st.metric("Wind Speed", f"{row.get('wind_speed_kt', 0)} kt")
             st.metric("Pressure", row.get("pressure", "N/A"))
 
-            # 🔴 Alerts based on conditions
+            # ⚠️ Alerts
             if row.get("wind_speed_kt", 0) > 15:
                 st.warning("💨 High Winds — Possible Increased Fuel Usage")
             if pred_burn > 25000:
@@ -84,5 +76,5 @@ for idx, row in flights.iterrows():
     except Exception as e:
         st.error(f"❌ Prediction failed for {callsign}: {e}")
 
-# ✅ Footer timestamp
-st.caption(f"⏱ Last updated: {datetime.now().strftime('%H:%M:%S')} — Manual refresh above.")
+# ✅ Footer Timestamp
+st.caption(f"⏱ Last checked: {datetime.now().strftime('%H:%M:%S')} — Click [🔁 Refresh Now] to re-fetch")
