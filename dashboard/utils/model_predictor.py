@@ -1,9 +1,11 @@
-import joblib
-import pandas as pd
+import os
 
-# Load saved ML model
-model_path = '/content/drive/MyDrive/Etihad_Optimization/models/fuel_burn_predictor.pkl'
+current_dir = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(current_dir, '..', '..', 'models', 'fuel_burn_predictor.pkl')
+model_path = os.path.abspath(model_path)
+
 model = joblib.load(model_path)
+
 
 # Predict fuel burn given distance_km and weather penalty
 def predict_fuel_burn(distance_km, weather_penalty_factor=0.02):
