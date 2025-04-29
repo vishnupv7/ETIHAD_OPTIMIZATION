@@ -1,3 +1,5 @@
+# 📄 /dashboard/utils/prepare_live_features.py
+
 import pandas as pd
 
 def prepare_live_features(flight_row, weather_row):
@@ -13,6 +15,7 @@ def prepare_live_features(flight_row, weather_row):
 
     deviation_flag = 0
     distance_penalty_km = 0
+
     CRUISE_SPEED_KMPH = 850
     expected_flight_duration_sec = (distance_km / CRUISE_SPEED_KMPH) * 3600
 
@@ -25,5 +28,3 @@ def prepare_live_features(flight_row, weather_row):
         'distance_penalty_km': [distance_penalty_km]
     })
     return features
-''')
-print("✅ File corrected!")
