@@ -1,55 +1,91 @@
+# 📄 dashboard/pages/8_LiveMonitoring.py
+
 import streamlit as st
 import pandas as pd
+import requests
 from datetime import datetime
+from utils.model_predictor import predict_fuel_burn_single
 from utils.fetch_live_data import fetch_live_flights, fetch_weather
-from utils.model_predictor import predict_fuel_burn
 from utils.prepare_live_features import prepare_live_features
 
-st.set_page_config(page_title="Live Monitoring - Etihad CO₂", layout="wide")
+# ✅ Page Setup FIRST (always first Streamlit call)
+st.set_page_config(page_title="🛫 Live Monitoring - Etihad CO2 Optimization", layout="wide")
 
-# --- UI Header ---
-st.title("🛫 Live Monitoring - Etihad CO₂ Insights (Live + Replay)")
+st.title("🛫 Live Flight Monitoring & Prediction - Etihad Airways")
 
-# --- Manual Refresh Button ---
-if st.button("🔁 Refresh Now"):
-    st.session_state.manual_refresh = True
-    st.success("🔄 Manual refresh triggered!")
+# ✅ Sidebar Controls
+mode = st.sidebar.radio("Select Mode:", ["Live API", "Replay Mode (Offline Data)"])
+refresh_button = st.sidebar.button("🔄 Manual Refresh Now")
+st.sidebar.caption("Data auto-refreshes every 2 minutes if in Live Mode.")
 
-# --- Data Mode Selection ---
-mode = st.radio("🧭 Choose Mode", ['Live', 'Replay (Sample Data)'], horizontal=True)
+# ✅ Auto/manual refresh logic
+if refresh_button:
+    st.experimental_rerun()
 
-# --- Load Data ---
-if mode == 'Live':
-    df = fetch_live_flights()
-    st.caption("🛰 Live OpenSky flight data fetched")
+# ✅ OpenWeather API Key
+OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"
+
+# ✅ Main Logic
+if mode == "Replay Mode (Offline Data)":
+    st.warning("🕑 Replay mode active — historical flights dataset loaded.")
+
+    try:
+        df = pd.read_csv("data/processed/sample_replay_data.csv")
+        st.success(f"✅ Loaded {len(df)} historical flights from Replay Mode!")
+    except FileNotFoundError:
+        st.error("❌ Replay dataset not found! Please upload or generate.")
+        st.stop()
+
 else:
-    df = pd.read_csv("data/processed/sample_replay_data.csv")
-    st.info("📦 Using Replay Sample Data")
+    st.info("🛰️ Fetching Live OpenSky flights...")
+    df_live = fetch_live_flights()
 
-# --- Validate ---
-if df.empty:
-    st.warning("⚠️ No live Etihad flights detected.")
-    st.caption("Please check again later. No aircraft broadcasting under 'ETD%' at this moment.")
-else:
-    for _, row in df.iterrows():
+    if df_live.empty:
+        st.warning("⚠️ No live Etihad flights currently airborne or visible on OpenSky.")
+        st.stop()
+    else:
+        st.success(f"✅ Live Etihad flights found: {len(df_live)}")
+        df = df_live
+
+# ✅ Prepare data for prediction
+prepared_data = []
+
+for idx, row in df.iterrows():
+    try:
+        flight_features = prepare_live_features(row, openweather_api_key=OPENWEATHER_API_KEY)
+        predicted_fuel = predict_fuel_burn_single(flight_features)
+
+        prepared_data.append({
+            "callsign": row['callsign'],
+            "predicted_fuel_burn_kg": predicted_fuel,
+            "predicted_co2_kg": predicted_fuel * 3.16,
+            "wind_speed_kt": flight_features.get("wind_speed_kt", 0)
+        })
+
+    except Exception as e:
+        st.error(f"❌ Prediction error for {row.get('callsign', 'Unknown')}: {e}")
+
+# ✅ Convert results to DataFrame
+pred_df = pd.DataFrame(prepared_data)
+
+if not pred_df.empty:
+    st.subheader("✈️ Live Predictions")
+    st.dataframe(pred_df)
+
+    # 📍 Optional: Plot flights if lat/lon exist
+    if "latitude" in df.columns and "longitude" in df.columns:
         try:
-            # Prepare features
-            sample = prepare_live_features(row)
-            burn = predict_fuel_burn(sample)
+            st.subheader("🌍 Live Flight Map (Etihad flights)")
 
-            # Display
-            st.subheader(f"✈️ Flight: {sample['callsign']}")
-            st.metric("Predicted Fuel Burn (kg)", f"{burn:.2f}")
-            st.metric("Wind Speed (kt)", f"{sample['wind_speed_kt']:.1f}")
-            st.caption(f"Distance: {sample['distance_km']} km | Penalty: {sample['weather_penalty_factor']:.2f}")
+            st.map(df[['latitude', 'longitude']].dropna())
+        except:
+            st.info("ℹ️ Mapping skipped — missing or invalid coordinates.")
+else:
+    st.warning("⚠️ No flights available for prediction.")
 
-            if sample['wind_speed_kt'] > 25:
-                st.error("🌪 High Wind Risk — Optimize Altitude")
-            if burn > 25000:
-                st.warning("🛢 High Predicted Fuel Burn")
+# 📅 Footer
+st.caption(f"⏰ Last updated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
 
-        except Exception as e:
-            st.error(f"❌ Prediction failed for {row.get('callsign', 'N/A')}: {e}")
+# ✅ Optional: Manual Refresh Countdown
+st.empty()  # Placeholder for future refresh timer
 
-# --- Footer ---
-st.caption(f"🕒 Last checked: {datetime.now().strftime('%H:%M:%S')} — Click [🔁 Refresh Now] to re-fetch")
