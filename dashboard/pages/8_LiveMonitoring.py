@@ -1,80 +1,55 @@
 import streamlit as st
-
-# ✅ MUST be the very first Streamlit command
-st.set_page_config(page_title="Live Monitoring", layout="wide")
-
 import pandas as pd
 from datetime import datetime
 from utils.fetch_live_data import fetch_live_flights, fetch_weather
 from utils.model_predictor import predict_fuel_burn
 from utils.prepare_live_features import prepare_live_features
 
+st.set_page_config(page_title="Live Monitoring - Etihad CO₂", layout="wide")
+
+# --- UI Header ---
 st.title("🛫 Live Monitoring - Etihad CO₂ Insights (Live + Replay)")
 
-# ✅ Manual Refresh Button (uses query param instead of experimental_rerun)
-refresh = st.button("🔁 Refresh Now")
+# --- Manual Refresh Button ---
+if st.button("🔁 Refresh Now"):
+    st.session_state.manual_refresh = True
+    st.success("🔄 Manual refresh triggered!")
 
-# ✅ Mode Selector
-mode = st.radio("🛰️ Choose Mode", ["Live", "Replay (Sample Data)"], horizontal=True)
+# --- Data Mode Selection ---
+mode = st.radio("🧭 Choose Mode", ['Live', 'Replay (Sample Data)'], horizontal=True)
 
-# ✅ Fetch Live or Sample Data
-if refresh:
-    st.success("🔁 Manual refresh triggered!")
-
-flights_df = fetch_live_flights()
-
-if flights_df.empty and mode == "Live":
-    st.warning("⚠️ No live Etihad flights detected.")
-    st.stop()
-
-if mode == "Replay (Sample Data)":
-    sample_data = pd.DataFrame([{
-        'callsign': 'ETD100',
-        'distance_km': 11500,
-        'wind_speed_kt': 12.0,
-        'weather_penalty_factor': 0.02,
-        'deviation_flag': 0,
-        'expected_flight_duration_sec': 42000,
-        'distance_penalty_km': 0,
-        'pressure': 1008
-    }])
-    st.info("📦 Using Replay Sample Data")
-    flights = sample_data
+# --- Load Data ---
+if mode == 'Live':
+    df = fetch_live_flights()
+    st.caption("🛰 Live OpenSky flight data fetched")
 else:
-    flights = prepare_live_features(flights_df)
-    if flights.empty:
-        st.warning("⚠️ No valid flights available after feature preparation.")
-        st.stop()
+    df = pd.read_csv("data/processed/sample_replay_data.csv")
+    st.info("📦 Using Replay Sample Data")
 
-# ✅ Show Predictions and Insights
-for idx, row in flights.iterrows():
-    callsign = row.get("callsign", f"Flight {idx}")
+# --- Validate ---
+if df.empty:
+    st.warning("⚠️ No live Etihad flights detected.")
+    st.caption("Please check again later. No aircraft broadcasting under 'ETD%' at this moment.")
+else:
+    for _, row in df.iterrows():
+        try:
+            # Prepare features
+            sample = prepare_live_features(row)
+            burn = predict_fuel_burn(sample)
 
-    try:
-        pred_burn = predict_fuel_burn(
-            distance_km=row.get("distance_km", 3000),
-            weather_penalty_factor=row.get("weather_penalty_factor", 0.02),
-            deviation_flag=row.get("deviation_flag", 0),
-            wind_speed_kt=row.get("wind_speed_kt", 0),
-            expected_flight_duration_sec=row.get("expected_flight_duration_sec", 0),
-            distance_penalty_km=row.get("distance_penalty_km", 0)
-        )
+            # Display
+            st.subheader(f"✈️ Flight: {sample['callsign']}")
+            st.metric("Predicted Fuel Burn (kg)", f"{burn:.2f}")
+            st.metric("Wind Speed (kt)", f"{sample['wind_speed_kt']:.1f}")
+            st.caption(f"Distance: {sample['distance_km']} km | Penalty: {sample['weather_penalty_factor']:.2f}")
 
-        with st.expander(f"✈️ {callsign} — Predicted Fuel Burn: {pred_burn:.2f} kg"):
-            st.metric("Predicted Fuel Burn", f"{pred_burn:.2f} kg")
-            st.metric("Wind Speed", f"{row.get('wind_speed_kt', 0)} kt")
-            st.metric("Pressure", row.get("pressure", "N/A"))
+            if sample['wind_speed_kt'] > 25:
+                st.error("🌪 High Wind Risk — Optimize Altitude")
+            if burn > 25000:
+                st.warning("🛢 High Predicted Fuel Burn")
 
-            # ⚠️ Alerts
-            if row.get("wind_speed_kt", 0) > 15:
-                st.warning("💨 High Winds — Possible Increased Fuel Usage")
-            if pred_burn > 25000:
-                st.error("🔥 High Predicted Fuel Burn — Route Optimization Suggested")
-            if row.get("pressure", 1013) < 1000:
-                st.warning("🌫️ Low Pressure Detected — Potential Weather Impact")
+        except Exception as e:
+            st.error(f"❌ Prediction failed for {row.get('callsign', 'N/A')}: {e}")
 
-    except Exception as e:
-        st.error(f"❌ Prediction failed for {callsign}: {e}")
-
-# ✅ Footer Timestamp
-st.caption(f"⏱ Last checked: {datetime.now().strftime('%H:%M:%S')} — Click [🔁 Refresh Now] to re-fetch")
+# --- Footer ---
+st.caption(f"🕒 Last checked: {datetime.now().strftime('%H:%M:%S')} — Click [🔁 Refresh Now] to re-fetch")
