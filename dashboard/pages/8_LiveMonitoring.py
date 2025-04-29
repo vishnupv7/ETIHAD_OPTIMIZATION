@@ -1,4 +1,4 @@
-# 📄 dashboard/pages/8_LiveMonitoring.py (UPDATED FULLY)
+# 📄 8_LiveMonitoring.py — Etihad Live Monitoring Page
 
 import streamlit as st
 import pandas as pd
@@ -8,76 +8,78 @@ from utils.fetch_live_data import fetch_live_flights, fetch_weather
 from utils.model_predictor import predict_fuel_burn_single
 from utils.prepare_live_features import prepare_live_features
 
-# ✅ Set page config immediately
-st.set_page_config(page_title="Live Monitoring - Etihad CO2", layout="wide")
+# ✅ Set page config at very beginning
+st.set_page_config(page_title="Live Monitoring - Etihad CO₂ Dashboard", layout="wide")
 
-st.title("🛫 Live Flight Monitoring - Etihad Airways")
-st.caption("Monitoring real-time flights, emissions, and weather impact.")
+# ✅ Page title
+st.title("🛫 Live Monitoring - Etihad Airways Flights")
 
-# ✅ Manual Refresh Button
-refresh = st.button("🔁 Refresh Now")
+# ✅ OpenWeather API Key
+OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"  # Your working key
 
-if refresh:
-   st.rerun()
+# ✅ Refresh button
+if st.button("🔄 Refresh Now"):
+    st.experimental_rerun()
 
+# ✅ Load Live Flights
+st.subheader("🔎 Fetching Live OpenSky flights...")
+live_flights = fetch_live_flights()
 
-# ✅ OpenWeather API Key (hidden or environment loaded in real app)
-OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"
+if live_flights.empty:
+    st.warning("⚠️ No live Etihad flights detected currently.")
+    st.stop()
 
-# ✅ Fetch Live Flights
-flights_df = fetch_live_flights()
+# ✅ Filter ETD callsigns only
+live_etihad_flights = live_flights[live_flights['callsign'].str.startswith('ETD', na=False)]
 
-if flights_df.empty:
-    st.warning("⚠️ No live Etihad flights detected from OpenSky public API.")
-else:
-    st.success(f"✅ Live Etihad flights found: {len(flights_df)}")
+st.success(f"✅ Live Etihad flights found: {len(live_etihad_flights)}")
 
-    for idx, row in flights_df.iterrows():
-        try:
-            callsign = row.get("callsign", "Unknown").strip()
-            lat = row.get("latitude")
-            lon = row.get("longitude")
-            velocity = row.get("velocity")
+# ✅ Display flights
+for idx, flight in live_etihad_flights.iterrows():
+    try:
+        callsign = str(flight['callsign']).strip()
+        latitude = flight['latitude']
+        longitude = flight['longitude']
+        velocity = flight['velocity']
 
-            if pd.isna(lat) or pd.isna(lon):
-                continue  # skip incomplete records
+        # Skip if lat/lon missing
+        if pd.isna(latitude) or pd.isna(longitude):
+            continue
 
-            # Fetch weather
-            weather = fetch_weather(lat, lon, api_key=OPENWEATHER_API_KEY)
+        # 🌦️ Fetch weather
+        weather = fetch_weather(latitude, longitude, api_key=OPENWEATHER_API_KEY)
 
-            wind_speed_kt = weather.get("wind_speed", 10) if weather else 10
+        # 🧠 Prepare model features
+        sample = prepare_live_features(
+            callsign=callsign,
+            latitude=latitude,
+            longitude=longitude,
+            velocity=velocity,
+            weather=weather,
+        )
 
-            # Build the sample
-            sample = {
-                "callsign": callsign,
-                "latitude": lat,
-                "longitude": lon,
-                "velocity": velocity,
-                "wind_speed_kt": wind_speed_kt,
-                "distance_km": 3000  # temporary placeholder assumed distance
-            }
+        # 🔥 Predict fuel burn
+        pred_burn = predict_fuel_burn_single(**sample)
 
-            # ✅ Filter fields
-            filtered_sample = {
-                "distance_km": sample.get("distance_km", 3000),
-                "wind_speed_kt": sample.get("wind_speed_kt", 10)
-            }
+        # 🧮 Calculate CO₂ emissions
+        pred_co2 = pred_burn * 3.16  # ICAO standard
 
-            # ✅ Prepare features safely
-            prepared = prepare_live_features(**filtered_sample)
+        # 📋 Display info
+        st.markdown("---")
+        st.subheader(f"✈️ Flight: `{callsign}`")
+        st.metric("🛢️ Predicted Fuel Burn (kg)", f"{pred_burn:.2f}")
+        st.metric("🌎 Predicted CO₂ Emissions (kg)", f"{pred_co2:.2f}")
+        st.metric("🌬️ Wind Speed (kt)", f"{sample['wind_speed_kt']:.1f}")
+        
+        # ⚡ Insights
+        if sample['wind_speed_kt'] > 20:
+            st.warning("⚡ Strong winds — consider adjusting cruise altitude!")
 
-            # ✅ Predict
-            pred_burn = predict_fuel_burn_single(**prepared)
-            pred_co2 = pred_burn * 3.16  # ICAO multiplier
+        if pred_co2 > 50000:
+            st.error("🚨 High Emissions Flight Detected!")
 
-            # ✅ Display
-            with st.expander(f"✈️ {callsign}", expanded=False):
-                st.metric("Predicted Fuel Burn (kg)", f"{pred_burn:.2f}")
-                st.metric("Predicted CO₂ Emissions (kg)", f"{pred_co2:.2f}")
-                st.metric("Wind Speed (kt)", f"{wind_speed_kt:.2f}")
+    except Exception as e:
+        st.error(f"❌ Prediction error for {flight['callsign']}: {e}")
 
-        except Exception as e:
-            st.error(f"❌ Prediction error for {row.get('callsign', 'Unknown')}: {e}")
-
-# ✅ Footer
-st.caption("Last updated: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+# ⏳ Footer
+st.caption("🔄 Dashboard refreshes manually when clicked. Live tracking powered by OpenSky & OpenWeather APIs.")
