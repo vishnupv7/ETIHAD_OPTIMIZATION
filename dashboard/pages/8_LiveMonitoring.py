@@ -1,4 +1,9 @@
 import streamlit as st
+
+# ✅ Safe Manual Refresh BEFORE ANY UI RENDERING
+if st.button("🔁 Refresh Now"):
+    st.experimental_rerun()
+
 import pandas as pd
 from datetime import datetime
 from utils.fetch_live_data import fetch_live_flights, fetch_weather
