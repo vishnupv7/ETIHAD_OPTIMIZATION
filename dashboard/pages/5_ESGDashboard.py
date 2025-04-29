@@ -1,11 +1,13 @@
-
 import streamlit as st
+import plotly.express as px
 from utils.load_data import load_dashboard_data
 
 df = load_dashboard_data()
 
 st.title("🌱 ESG Compliance Dashboard")
 
-st.metric("Avg ESG Match %", f"{df['esg_match_percent'].mean():.1f}%")
+avg_esg = df['esg_match_percent'].mean()
+st.metric("Avg ESG Match %", f"{avg_esg:.1f}%")
 
-st.bar_chart(df['esg_match_percent'])
+fig = px.box(df, y='esg_match_percent', title="ESG Compliance Score Spread")
+st.plotly_chart(fig)
