@@ -30,20 +30,15 @@ def fetch_live_flights():
         return pd.DataFrame()
 
 # ✅ Fetch Live Weather (from OpenWeather API)
-def fetch_weather(lat, lon):
-    try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric"
-        r = requests.get(url, timeout=10)
-        data = r.json()
-        return {
-            "wind_speed_kt": data.get("wind", {}).get("speed", 0) * 1.94384,  # convert m/s to knots
-            "pressure_hpa": data.get("main", {}).get("pressure", 1013),
-            "temperature_c": data.get("main", {}).get("temp", 25)
-        }
-    except Exception as e:
-        print(f"⚠️ Failed to fetch weather: {e}")
-        return {
-            "wind_speed_kt": 10,   # Assume light wind if API fails
-            "pressure_hpa": 1013,
-            "temperature_c": 25
-        }
+def fetch_weather(lat, lon, api_key):
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units=metric"
+    r = requests.get(url)
+    if r.status_code != 200:
+        return {}
+    data = r.json()
+    return {
+        "wind_speed": data.get("wind", {}).get("speed", 10),
+        "wind_deg": data.get("wind", {}).get("deg", 0),
+        "pressure": data.get("main", {}).get("pressure", 1013),
+        "temperature": data.get("main", {}).get("temp", 25)
+    }
