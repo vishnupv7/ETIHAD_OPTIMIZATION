@@ -1,5 +1,3 @@
-
-# 📦 utils/prepare_live_features.py
 import pandas as pd
 
 def prepare_live_features(flight_row, weather_row):
@@ -27,3 +25,5 @@ def prepare_live_features(flight_row, weather_row):
         'distance_penalty_km': [distance_penalty_km]
     })
     return features
+''')
+print("✅ File corrected!")
