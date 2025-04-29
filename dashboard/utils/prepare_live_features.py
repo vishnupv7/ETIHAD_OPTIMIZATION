@@ -1,9 +1,12 @@
-def prepare_live_features(row):
-    return {
-        'callsign': row.get('callsign', 'Unknown'),
-        'distance_km': row.get('distance_km', 3000),
-        'weather_penalty_factor': 0.02,  # Default fallback
-        'wind_speed_kt': row.get('wind_speed_kt', 0),
-        'expected_flight_duration_sec': row.get('expected_flight_duration_sec', 0),
-        'deviation_flag': row.get('deviation_flag', 0),
-        'distance_penalty_km': row.get('distance_penalty_km', 0) }
+import pandas as pd
+
+def prepare_live_features(flight_row, weather_info):
+    features = {
+        'distance_km': 3000,  # Assume dummy distance or compute based on lat/lon
+        'weather_penalty_factor': 0.02,  # Assume dummy penalty
+        'deviation_flag': 0,  # No deviation assumed live
+        'wind_speed_kt': weather_info.get('wind_speed_kt', 10),
+        'expected_flight_duration_sec': 3000 * (3600 / 850),  # Dummy speed 850 km/h
+        'distance_penalty_km': 0  # Assume no holding
+    }
+    return pd.DataFrame([features])
