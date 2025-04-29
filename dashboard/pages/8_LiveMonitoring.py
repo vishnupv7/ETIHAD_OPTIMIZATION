@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import datetime
 import pandas as pd
 import time
 from utils.fetch_live_data import fetch_live_flights, fetch_weather
@@ -66,8 +67,11 @@ for idx, sample in live_data.iterrows():
         if sample.get('pressure', 1013) < 1000:
             st.warning("🌫️ Possible Low Pressure Zone - Monitor Flight Altitude")
 
-# Auto Refresh
+
+
 if mode == 'Live':
-    st.caption("⏳ Auto-refreshing every 60 seconds...")
+    st.caption(f"⏳ Auto-refreshing every 60 seconds... (Last updated: {datetime.now().strftime('%H:%M:%S')})")
     time.sleep(60)
+    st.toast("Auto-refreshing now...")
     st.experimental_rerun()
+
