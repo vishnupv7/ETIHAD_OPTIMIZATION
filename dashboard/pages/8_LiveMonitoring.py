@@ -18,7 +18,8 @@ st.caption("Monitoring real-time flights, emissions, and weather impact.")
 refresh = st.button("🔁 Refresh Now")
 
 if refresh:
-    st.experimental_rerun()
+   st.rerun()
+
 
 # ✅ OpenWeather API Key (hidden or environment loaded in real app)
 OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"
