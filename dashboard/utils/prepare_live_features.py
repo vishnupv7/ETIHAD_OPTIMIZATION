@@ -1,22 +1,16 @@
-def prepare_live_features(
-    callsign,
-    latitude,
-    longitude,
-    velocity,
-    distance_km=3000,
-    wind_speed_kt=10,
-    pressure=1013,
-    expected_flight_duration_sec=14400,
-    deviation_flag=0
-):
+# utils/prepare_live_features.py
+
+def prepare_live_features(distance_km, wind_speed_kt=10.0):
+    """
+    Prepare the live feature input exactly matching model expectations.
+    - distance_km: required
+    - wind_speed_kt: optional, default 10 kt
+    """
+
+    # Basic weather penalty factor (assumed logic)
+    weather_penalty_factor = 0.02 if wind_speed_kt > 20 else 0.01
+
     return {
-        "callsign": callsign,
-        "latitude": latitude,
-        "longitude": longitude,
-        "velocity": velocity,
         "distance_km": distance_km,
-        "wind_speed_kt": wind_speed_kt,
-        "pressure": pressure,
-        "expected_flight_duration_sec": expected_flight_duration_sec,
-        "deviation_flag": deviation_flag,
+        "weather_penalty_factor": weather_penalty_factor
     }
