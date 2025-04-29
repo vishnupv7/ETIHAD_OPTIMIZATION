@@ -1,3 +1,5 @@
+# 📄 dashboard/pages/8_LiveMonitoring.py (UPDATED FULLY)
+
 import streamlit as st
 import pandas as pd
 import requests
@@ -6,60 +8,75 @@ from utils.fetch_live_data import fetch_live_flights, fetch_weather
 from utils.model_predictor import predict_fuel_burn_single
 from utils.prepare_live_features import prepare_live_features
 
-st.set_page_config(page_title="Live Monitoring - Etihad CO₂", layout="wide")
+# ✅ Set page config immediately
+st.set_page_config(page_title="Live Monitoring - Etihad CO2", layout="wide")
 
-st.title("🛫 Live Monitoring - Etihad Real-Time CO₂ Insights")
+st.title("🛫 Live Flight Monitoring - Etihad Airways")
+st.caption("Monitoring real-time flights, emissions, and weather impact.")
 
-# ✅ Auto/manual refresh
-refresh_button = st.button("🔄 Refresh Live Data")
+# ✅ Manual Refresh Button
+refresh = st.button("🔁 Refresh Now")
 
-# ✅ OpenWeather API Key
+if refresh:
+    st.experimental_rerun()
+
+# ✅ OpenWeather API Key (hidden or environment loaded in real app)
 OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"
 
-# ✅ Fetch live flights
-st.subheader("🔎 Fetching Live OpenSky flights...")
+# ✅ Fetch Live Flights
 flights_df = fetch_live_flights()
 
 if flights_df.empty:
-    st.error("⚠️ No live Etihad flights detected right now. Waiting for data...")
+    st.warning("⚠️ No live Etihad flights detected from OpenSky public API.")
 else:
     st.success(f"✅ Live Etihad flights found: {len(flights_df)}")
 
-    for idx, flight in flights_df.iterrows():
+    for idx, row in flights_df.iterrows():
         try:
-            lat = flight['latitude']
-            lon = flight['longitude']
-            callsign = str(flight['callsign']).strip()
+            callsign = row.get("callsign", "Unknown").strip()
+            lat = row.get("latitude")
+            lon = row.get("longitude")
+            velocity = row.get("velocity")
 
-            if pd.isna(lat) or pd.isna(lon) or not callsign:
-                continue
+            if pd.isna(lat) or pd.isna(lon):
+                continue  # skip incomplete records
 
-            # 🌦️ Fetch weather
+            # Fetch weather
             weather = fetch_weather(lat, lon, api_key=OPENWEATHER_API_KEY)
-            wind_speed_kt = weather.get('wind_speed', 10)
 
-            # 📈 Prepare feature input
-            sample_features = prepare_live_features(
-                distance_km=3000,  # Assumed standard cruise distance
-                wind_speed_kt=wind_speed_kt,
-                deviation_flag=0,
-                expected_flight_duration_sec=12600,
-                distance_penalty_km=0
-            )
+            wind_speed_kt = weather.get("wind_speed", 10) if weather else 10
 
-            # 🔥 Predict
-            pred_burn = predict_fuel_burn_single(sample_features)
-            pred_co2 = pred_burn * 3.16
+            # Build the sample
+            sample = {
+                "callsign": callsign,
+                "latitude": lat,
+                "longitude": lon,
+                "velocity": velocity,
+                "wind_speed_kt": wind_speed_kt,
+                "distance_km": 3000  # temporary placeholder assumed distance
+            }
 
-            st.markdown(f"""
-            ---
-            ✈️ **Flight:** `{callsign}`  
-            🛢️ **Predicted Fuel Burn:** `{pred_burn:.2f} kg`  
-            🌎 **Predicted CO₂ Emissions:** `{pred_co2:.2f} kg`  
-            🌬️ **Wind Speed:** `{wind_speed_kt:.1f} kt`
-            ---
-            """)
+            # ✅ Filter fields
+            filtered_sample = {
+                "distance_km": sample.get("distance_km", 3000),
+                "wind_speed_kt": sample.get("wind_speed_kt", 10)
+            }
+
+            # ✅ Prepare features safely
+            prepared = prepare_live_features(**filtered_sample)
+
+            # ✅ Predict
+            pred_burn = predict_fuel_burn_single(**prepared)
+            pred_co2 = pred_burn * 3.16  # ICAO multiplier
+
+            # ✅ Display
+            with st.expander(f"✈️ {callsign}", expanded=False):
+                st.metric("Predicted Fuel Burn (kg)", f"{pred_burn:.2f}")
+                st.metric("Predicted CO₂ Emissions (kg)", f"{pred_co2:.2f}")
+                st.metric("Wind Speed (kt)", f"{wind_speed_kt:.2f}")
+
         except Exception as e:
-            st.error(f"❌ Prediction error for {callsign}: {e}")
+            st.error(f"❌ Prediction error for {row.get('callsign', 'Unknown')}: {e}")
 
-st.caption("🕒 This page shows real-time OpenSky flights + live weather impact.")
+# ✅ Footer
+st.caption("Last updated: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
