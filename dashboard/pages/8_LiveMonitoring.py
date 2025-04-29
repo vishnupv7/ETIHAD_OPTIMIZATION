@@ -1,61 +1,46 @@
+
 import streamlit as st
-import pandas as pd
-import time
 from utils.fetch_live_data import fetch_live_flights, fetch_weather
 from utils.model_predictor import predict_fuel_burn
 from utils.prepare_live_features import prepare_live_features
+from utils.replay_sample import get_sample_flight
+import pandas as pd
 
 st.set_page_config(page_title="Live Monitoring", layout="wide")
-st.title("🛫 Live Monitoring - Etihad CO₂ Insights (Real Data Only)")
+st.title("🛫 Live Monitoring - Etihad CO₂ Insights (Real Data or Replay)")
 
-REFRESH_INTERVAL = 60
+mode = st.radio("📡 Select Data Mode", ["Live", "Replay"], index=0)
 
-# Fetch live Etihad flights
-flights_df = fetch_live_flights()
+if mode == "Live":
+    flights_df = fetch_live_flights()
+    if flights_df.empty:
+        st.warning("😞 No Live Etihad Flights Detected")
+        st.caption("Please check again later. No aircraft broadcasting under 'ETD%' at this moment.")
+    else:
+        for idx, flight in flights_df.iterrows():
+            if pd.isna(flight['latitude']) or pd.isna(flight['longitude']):
+                continue
+            features = prepare_live_features(flight)
+            if features is None:
+                continue
+            pred_burn = predict_fuel_burn(**features)
 
-st.sidebar.subheader("📡 Live Data Debugging")
-st.sidebar.write(f"Flights fetched: {flights_df.shape[0]}")
-if not flights_df.empty:
-    st.sidebar.dataframe(flights_df[['callsign', 'latitude', 'longitude', 'velocity']].head(10))
+            st.subheader(f"✈️ {flight['callsign'].strip()} at {round(flight['latitude'],2)}, {round(flight['longitude'],2)}")
+            st.metric("Predicted Fuel Burn (kg)", f"{pred_burn:.1f}")
+            st.metric("Wind Speed", f"{features['wind_speed_kt']} kt")
 
-if flights_df.empty:
-    st.markdown("### 😞 No Live Etihad Flights Detected")
-    st.markdown("Please check again later. No aircraft broadcasting under 'ETD%' at this moment.")
-    st.image("https://cdn-icons-png.flaticon.com/512/408/408172.png", width=100)
-    st.stop()
+            if features['wind_speed_kt'] > 15:
+                st.warning("⚠️ High Wind Speed — Potential Fuel Penalty")
+            if pred_burn > 25000:
+                st.error("🔥 High Predicted Fuel Burn")
 
-# Loop through live flights
-for idx, flight in flights_df.iterrows():
-    callsign = flight.get('callsign', 'Unknown')
-    lat = flight.get('latitude', None)
-    lon = flight.get('longitude', None)
+else:
+    sample = get_sample_flight()
+    pred_burn = predict_fuel_burn(**sample)
+    st.subheader("🔁 Replay Mode: EY101 (AUH ➝ JFK)")
+    st.metric("Predicted Fuel Burn", f"{pred_burn:.1f} kg")
+    st.metric("Distance", f"{sample['distance_km']} km")
+    st.metric("Wind Speed", f"{sample['wind_speed_kt']} kt")
+    st.info("Insights based on real past flight — useful for demo/testing.")
 
-    if pd.isna(lat) or pd.isna(lon):
-        continue
-
-    weather = fetch_weather(lat, lon)
-    if not weather:
-        st.warning(f"🌧️ Weather fetch failed for {callsign}. Skipping.")
-        continue
-
-    features = prepare_live_features(flight, weather)
-    predicted_burn = predict_fuel_burn(**features.iloc[0].to_dict())
-
-    with st.container():
-        st.subheader(f"✈️ Flight: {callsign.strip()}")
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Predicted Fuel Burn (kg)", f"{predicted_burn:.2f}")
-        col2.metric("Wind Speed (kt)", f"{features['wind_speed_kt'].values[0]:.2f}")
-        col3.metric("Pressure (hPa)", f"{weather['pressure']}")
-        col4.metric("Temperature (°C)", f"{weather['temperature']}")
-
-        if features['wind_speed_kt'].values[0] > 15:
-            st.error("⚠️ High Wind Detected — Potential Fuel Risk!")
-        if predicted_burn > 25000:
-            st.error("⚠️ High Predicted Fuel Burn!")
-        if weather['pressure'] < 1000:
-            st.warning("⛅ Low Pressure — Diversion Risk!")
-
-st.caption(f"🔁 Auto-refreshing every {REFRESH_INTERVAL} seconds...")
-time.sleep(REFRESH_INTERVAL)
-st.experimental_rerun()
+st.caption("Module refreshes every 60 seconds on live mode.")
