@@ -1,34 +1,15 @@
-import os
-import pandas as pd
 import joblib
+import pandas as pd
+import os
 
-# Load model relative to repo structure
-current_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(current_dir, '..', '..', 'models', 'fuel_burn_predictor.pkl')
-model_path = os.path.abspath(model_path)
+# Load saved ML model
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '../../models/fuel_burn_predictor.pkl')
+model = joblib.load(MODEL_PATH)
 
-model = joblib.load(model_path)
+# Required features for prediction
+MODEL_FEATURES = ['distance_km', 'weather_penalty_factor']
 
-# 🛠 Correct live prediction function
-def predict_fuel_burn(distance_km, weather_penalty_factor=0.02, wind_speed_kt=10, deviation_flag=0, distance_penalty_km=0):
-    """
-    Predicts fuel burn for a live flight based on available features.
-    Fallbacks to safe dummy values if some features missing.
-    """
-
-    # ✈️ Cruise speed assumption
-    CRUISE_SPEED_KM_PER_HOUR = 850
-    expected_flight_duration_sec = (distance_km / CRUISE_SPEED_KM_PER_HOUR) * 3600
-
-    # 📋 Create full feature set
-    X = pd.DataFrame({
-        'distance_km': [distance_km],
-        'weather_penalty_factor': [weather_penalty_factor],
-        'deviation_flag': [deviation_flag],
-        'wind_speed_kt': [wind_speed_kt],
-        'expected_flight_duration_sec': [expected_flight_duration_sec],
-        'distance_penalty_km': [distance_penalty_km]
-    })
-
-    pred = model.predict(X)
-    return pred[0]
+def predict_fuel_burn(features_dict):
+    filtered = {k: v for k, v in features_dict.items() if k in MODEL_FEATURES}
+    X = pd.DataFrame([filtered])
+    return model.predict(X)[0]
