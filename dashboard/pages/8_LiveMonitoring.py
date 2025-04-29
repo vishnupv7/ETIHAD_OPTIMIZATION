@@ -20,7 +20,8 @@ st.sidebar.caption("Data auto-refreshes every 2 minutes if in Live Mode.")
 
 # ✅ Auto/manual refresh logic
 if refresh_button:
-    st.experimental_rerun()
+    st.rerun()
+
 
 # ✅ OpenWeather API Key
 OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"
