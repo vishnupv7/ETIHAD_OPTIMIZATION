@@ -6,25 +6,21 @@ import pandas as pd
 model_path = "models/fuel_burn_predictor.pkl"
 model = joblib.load(model_path)
 
-# ✅ Safe prediction with correct feature names
-def predict_fuel_burn_single(
-    distance_km,
-    weather_penalty_factor,
-    deviation_flag,
-    wind_speed_kt,
-    expected_flight_duration_sec,
-    distance_penalty_km
-):
-    # Create a DataFrame with expected schema
-    X = pd.DataFrame([{
-        "distance_km": distance_km,
-        "weather_penalty_factor": weather_penalty_factor,
-        "deviation_flag": deviation_flag,
-        "wind_speed_kt": wind_speed_kt,
-        "expected_flight_duration_sec": expected_flight_duration_sec,
-        "distance_penalty_km": distance_penalty_km
-    }])
+# ✅ Safe prediction with exact schema
+REQUIRED_FEATURES = [
+    "distance_km",
+    "weather_penalty_factor",
+    "deviation_flag",
+    "wind_speed_kt",
+    "expected_flight_duration_sec",
+    "distance_penalty_km"
+]
 
-    # ⚠️ Make prediction
-    pred = model.predict(X)
-    return pred[0]  # Return as float
+def predict_fuel_burn_single(**features_dict):
+    # Ensure all required features are present
+    missing = [f for f in REQUIRED_FEATURES if f not in features_dict]
+    if missing:
+        raise ValueError(f"Missing features: {missing}")
+
+    df = pd.DataFrame([features_dict])[REQUIRED_FEATURES]
+    return model.predict(df)[0]
