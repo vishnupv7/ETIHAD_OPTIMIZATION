@@ -1,18 +1,30 @@
-# utils/model_predictor.py
+# 📦 model_predictor.py
 import joblib
-import numpy as np
-import os
+import pandas as pd
 
-MODEL_PATH = os.path.join("models", "fuel_burn_predictor.pkl")
-model = joblib.load(MODEL_PATH)
+# ✅ Load trained model
+model_path = "models/fuel_burn_predictor.pkl"
+model = joblib.load(model_path)
 
-def predict_fuel_burn_single(features: dict):
-    X = np.array([[features[k] for k in [
-        "distance_km",
-        "weather_penalty_factor",
-        "deviation_flag",
-        "wind_speed_kt",
-        "expected_flight_duration_sec",
-        "distance_penalty_km"
-    ]]])
-    return model.predict(X)[0]
+# ✅ Safe prediction with correct feature names
+def predict_fuel_burn_single(
+    distance_km,
+    weather_penalty_factor,
+    deviation_flag,
+    wind_speed_kt,
+    expected_flight_duration_sec,
+    distance_penalty_km
+):
+    # Create a DataFrame with expected schema
+    X = pd.DataFrame([{
+        "distance_km": distance_km,
+        "weather_penalty_factor": weather_penalty_factor,
+        "deviation_flag": deviation_flag,
+        "wind_speed_kt": wind_speed_kt,
+        "expected_flight_duration_sec": expected_flight_duration_sec,
+        "distance_penalty_km": distance_penalty_km
+    }])
+
+    # ⚠️ Make prediction
+    pred = model.predict(X)
+    return pred[0]  # Return as float
