@@ -15,12 +15,11 @@ st.set_page_config(page_title="Live Monitoring - Etihad CO₂ Dashboard", layout
 st.title("🛫 Live Monitoring - Etihad Airways Flights")
 
 # ✅ OpenWeather API Key
-OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"  # Your working key
+OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"  # Replace with secure method in prod
 
 # ✅ Refresh button
 if st.button("🔄 Refresh Now"):
     st.rerun()
-
 
 # ✅ Load Live Flights
 st.subheader("🔎 Fetching Live OpenSky flights...")
@@ -31,56 +30,57 @@ if live_flights.empty:
     st.stop()
 
 # ✅ Filter ETD callsigns only
-live_etihad_flights = live_flights[live_flights['callsign'].str.startswith('ETD', na=False)]
+live_etihad_flights = live_flights[live_flights['callsign'].astype(str).str.startswith("ETD")]
 
-st.success(f"✅ Live Etihad flights found: {len(live_etihad_flights)}")
+if live_etihad_flights.empty:
+    st.info("ℹ️ No Etihad flights currently active in OpenSky stream.")
+    st.stop()
 
-# ✅ Display flights
-for idx, flight in live_etihad_flights.iterrows():
+# ✅ Iterate over each Etihad flight
+for idx, row in live_etihad_flights.iterrows():
+    callsign = row['callsign'].strip()
+    lat = row['latitude']
+    lon = row['longitude']
+    vel = row['velocity']
+
+    if pd.isna(lat) or pd.isna(lon):
+        continue
+
+    # Fetch weather
+    weather = fetch_weather(lat, lon, OPENWEATHER_API_KEY)
+
+    sample = {
+        "callsign": callsign,
+        "latitude": lat,
+        "longitude": lon,
+        "velocity": vel,
+        "weather": weather
+    }
+
+    required_keys = {'latitude', 'longitude', 'velocity', 'weather'}
+    if not required_keys.issubset(sample):
+        st.warning(f"⚠️ Missing keys for prediction in {callsign}")
+        continue
+
     try:
-        callsign = str(flight['callsign']).strip()
-        latitude = flight['latitude']
-        longitude = flight['longitude']
-        velocity = flight['velocity']
+        # Extract only valid inputs
+        clean_input = {
+            "latitude": sample["latitude"],
+            "longitude": sample["longitude"],
+            "velocity": sample["velocity"],
+            "weather": sample["weather"]
+        }
+        features = prepare_live_features(**clean_input)
+        distance_km = features["distance_km"]
+        wind_speed_kt = sample.get("weather", {}).get("wind", {}).get("speed", 5) * 1.94384
+        predicted_burn = predict_fuel_burn_single(distance_km, wind_speed_kt)
+        co2_emissions = predicted_burn * 3.16
 
-        # Skip if lat/lon missing
-        if pd.isna(latitude) or pd.isna(longitude):
-            continue
-
-        # 🌦️ Fetch weather
-        weather = fetch_weather(latitude, longitude, api_key=OPENWEATHER_API_KEY)
-
-        # 🧠 Prepare model features
-        sample = prepare_live_features(
-            callsign=callsign,
-            latitude=latitude,
-            longitude=longitude,
-            velocity=velocity,
-            weather=weather,
-        )
-
-        # 🔥 Predict fuel burn
-        pred_burn = predict_fuel_burn_single(**sample)
-
-        # 🧮 Calculate CO₂ emissions
-        pred_co2 = pred_burn * 3.16  # ICAO standard
-
-        # 📋 Display info
-        st.markdown("---")
-        st.subheader(f"✈️ Flight: `{callsign}`")
-        st.metric("🛢️ Predicted Fuel Burn (kg)", f"{pred_burn:.2f}")
-        st.metric("🌎 Predicted CO₂ Emissions (kg)", f"{pred_co2:.2f}")
-        st.metric("🌬️ Wind Speed (kt)", f"{sample['wind_speed_kt']:.1f}")
-        
-        # ⚡ Insights
-        if sample['wind_speed_kt'] > 20:
-            st.warning("⚡ Strong winds — consider adjusting cruise altitude!")
-
-        if pred_co2 > 50000:
-            st.error("🚨 High Emissions Flight Detected!")
+        st.subheader(f"✈️ Flight: {callsign}")
+        st.metric("🛢️ Predicted Fuel Burn (kg)", f"{predicted_burn:,.2f}")
+        st.metric("🌍 CO₂ Emissions (kg)", f"{co2_emissions:,.2f}")
+        st.metric("🌬️ Wind Speed (kt)", f"{wind_speed_kt:.1f}")
 
     except Exception as e:
-        st.error(f"❌ Prediction error for {flight['callsign']}: {e}")
-
-# ⏳ Footer
-st.caption("🔄 Dashboard refreshes manually when clicked. Live tracking powered by OpenSky & OpenWeather APIs.")
+        st.error(f"❌ Prediction error for {callsign}: {e}")
+        continue
