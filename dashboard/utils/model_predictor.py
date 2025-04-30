@@ -1,15 +1,42 @@
-# ✅ model_predictor.py (Final Corrected)
+# ✅ model_predictor.py — Live Prediction Engine
 import joblib
-import numpy as np
+import pandas as pd
+import os
 
-# Load trained model
-model_path = "models/fuel_burn_predictor.pkl"
-model = joblib.load(model_path)
+# 📍 Path to saved model
+MODEL_PATH = os.path.join("models", "fuel_burn_predictor.pkl")
 
-# Single flight prediction function
-def predict_fuel_burn_single(distance_km, wind_speed_kt):
-    # Approximate weather penalty factor based on wind speed
-    weather_penalty_factor = min(0.1, wind_speed_kt / 100)  # 10% max penalty
-    X = np.array([[distance_km, weather_penalty_factor]])
-    prediction = model.predict(X)
-    return prediction[0]  # Return as single float
+# ✅ Load trained model
+model = joblib.load(MODEL_PATH)
+
+def predict_fuel_burn_single(feature_dict):
+    """
+    Predict fuel burn using a complete feature dictionary.
+    
+    Expected Keys:
+    - distance_km
+    - weather_penalty_factor
+    - deviation_flag
+    - wind_speed_kt
+    - expected_flight_duration_sec
+    - distance_penalty_km
+    """
+    required_features = [
+        "distance_km",
+        "weather_penalty_factor",
+        "deviation_flag",
+        "wind_speed_kt",
+        "expected_flight_duration_sec",
+        "distance_penalty_km"
+    ]
+    
+    # 🔍 Filter only required features
+    filtered = {k: feature_dict.get(k, 0) for k in required_features}
+    
+    # 🔢 Convert to DataFrame for sklearn model
+    df = pd.DataFrame([filtered])
+    
+    # 🎯 Predict fuel burn
+    prediction = model.predict(df)
+    
+    return prediction[0]  # Return float (kg)
