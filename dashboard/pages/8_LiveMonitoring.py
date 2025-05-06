@@ -13,7 +13,7 @@ st.title("🛫 Live Monitoring - Etihad Airways Flights")
 
 # ✅ Refresh button
 if st.button("🔄 Refresh Now"):
-    st.rerun()
+    st.experimental_rerun()
 
 OPENWEATHER_API_KEY = "b20a349c98dba96ab2cb98e5fcf6891a"
 
